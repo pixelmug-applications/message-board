@@ -1,0 +1,14 @@
+{
+  "name": "message-board",
+  "version": "1.0.7",
+  "description": "Display text pushed from a chat with Bubble Bot.",
+  "author": "PixelMug",
+  "category": "Tool",
+  "dependencies": [
+    {
+      "name": "micropyxel",
+      "version": ">=1.0.0"
+    }
+  ],
+  "date": "2026-08-07"
+}

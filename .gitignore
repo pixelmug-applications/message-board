@@ -1,0 +1,11 @@
+node_modules/
+mpy/dist/
+dist/
+debug/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+*.log
+.DS_Store
+Thumbs.db
