@@ -232,7 +232,9 @@ function messageText(ctx) {
 }
 
 function exactCommand(text) {
-  const match = String(text).trim().match(/^\/([a-zA-Z0-9_-]+)(?:@[a-zA-Z0-9_-]+)?$/);
+  // Ignore standalone mentions only when parsing; preserve the original display text.
+  const commandText = String(text).replace(/(^|\s)@[\w-]+(?=\s|$)/g, "$1").trim();
+  const match = commandText.match(/^\/([a-zA-Z0-9_-]+)(?:@[a-zA-Z0-9_-]+)?$/);
   return match ? match[1].toLowerCase() : "";
 }
 
