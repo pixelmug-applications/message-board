@@ -2,6 +2,7 @@ node_modules/
 mpy/dist/
 dist/
 debug/
+tests/
 __pycache__/
 *.py[cod]
 .env

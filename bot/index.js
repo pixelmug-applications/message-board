@@ -1,5 +1,6 @@
 import { BubbleBot, isNeedBindDeviceError } from "@jeejio-bubble/bot/sdk";
 import PixelMugS1 from "@jeejio-bubble/bot/devices/pixelmug-s1/ext";
+import { exactCommand, botMentionNames, stripBotMentions } from "./message-text.js";
 
 const MAX_MESSAGE_BYTES = 256;
 const MPS_LAUNCH_TIMEOUT_MS = Number(process.env.MPS_LAUNCH_TIMEOUT_MS || 45000);
@@ -10,6 +11,7 @@ const mpsID = requiredEnv("STUDIO_MPS_ID");
 const mpsVersion = requiredEnv("STUDIO_MPS_VERSION");
 const mpsLaunchConfig = { id: mpsID, version: mpsVersion };
 const pendingInstalls = new Map();
+const mentionProfiles = new Map();
 
 const pixelMugS1 = new PixelMugS1();
 const bot = new BubbleBot(token, {
@@ -31,8 +33,17 @@ bot.on("message:bind_device", async (ctx) => {
 });
 
 bot.on("message:text", async (ctx) => {
-  const text = messageText(ctx);
-  if (text === null) return;
+  const rawText = messageText(ctx);
+  if (rawText === null) return;
+  let text;
+  try {
+    text = await displayText(ctx, rawText);
+  } catch (error) {
+    console.error("[push-message-bot] mention cleanup failed", error);
+    await ctx.sendText("Could not identify the Bot mention. Please try sending your message again.");
+    return;
+  }
+  if (!text) return;
 
   const command = exactCommand(text);
   if (command === "binddevice") {
@@ -45,6 +56,10 @@ bot.on("message:text", async (ctx) => {
     return;
   }
 
+  if (command !== "clear" && /^\/[\w-]+(?:@[^\s/@]+)?(?:\s|$)/u.test(text)) {
+    await ctx.sendText("Available commands: /bindDevice, /install, /clear.");
+    return;
+  }
   const message = command === "clear" ? "/clear" : text;
   if (Buffer.byteLength(message, "utf8") > MAX_MESSAGE_BYTES) {
     await ctx.sendText(`Message is too long. The limit is ${MAX_MESSAGE_BYTES} UTF-8 bytes.`);
@@ -231,11 +246,19 @@ function messageText(ctx) {
   return typeof value === "string" ? value : String(value);
 }
 
-function exactCommand(text) {
-  // Ignore standalone mentions only when parsing; preserve the original display text.
-  const commandText = String(text).replace(/(^|\s)@[\w-]+(?=\s|$)/g, "$1").trim();
-  const match = commandText.match(/^\/([a-zA-Z0-9_-]+)(?:@[a-zA-Z0-9_-]+)?$/);
-  return match ? match[1].toLowerCase() : "";
+async function displayText(ctx, text) {
+  if (ctx.chat?.type !== "group" || !text.includes("@")) return text.trim();
+  const key = String(ctx.chat.id);
+  let cached = mentionProfiles.get(key);
+  if (!cached || Date.now() - cached.at > 60000) {
+    const profile = await ctx.getMe();
+    const names = botMentionNames(profile, ctx.me, bot.me);
+    if (!names.length) throw new Error("Bot profile has no mention name or ID");
+    cached = { names, at: Date.now() };
+    if (mentionProfiles.size >= 128) mentionProfiles.delete(mentionProfiles.keys().next().value);
+    mentionProfiles.set(key, cached);
+  }
+  return stripBotMentions(text, cached.names);
 }
 
 function deviceKey(device) {
